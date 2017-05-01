@@ -1,4 +1,5 @@
-﻿using System.Web.Http;
+﻿using System.Configuration;
+using System.Web.Http;
 
 namespace cc_slack_api.Controllers
 {
@@ -7,7 +8,7 @@ namespace cc_slack_api.Controllers
         [Route("slack/url_verification")]
         public IHttpActionResult UrlVerification(dynamic data)
         {
-            if (data.token == "Jhj5dZrVaK7ZwHHjRyZWjbDl" && data.type == "url_verification")
+            if (data.token == ConfigurationManager.AppSettings["slack_token"] && data.type == "url_verification")
             {
                 return Ok(data.challenge);
             }
