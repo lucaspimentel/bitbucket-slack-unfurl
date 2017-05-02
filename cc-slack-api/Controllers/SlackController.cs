@@ -1,6 +1,9 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Configuration;
 using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web;
@@ -29,9 +32,11 @@ namespace cc_slack_api.Controllers
                 return Unauthorized();
             }
 
-            if (data.type == "url_verification" && !string.IsNullOrWhiteSpace(data.challenge))
+            string challenge = data.challenge;
+
+            if (data.type == "url_verification" && !string.IsNullOrWhiteSpace(challenge))
             {
-                return Ok(data.challenge);
+                return Ok(challenge);
             }
 
             if (data.type == "event_callback")
@@ -49,8 +54,6 @@ namespace cc_slack_api.Controllers
                 if (eventType == "link_shared")
                 {
                     var unfurls = new Dictionary<string, object>();
-                    var bitbucketClient = new HttpClient();
-                    var slackClient = new HttpClient();
 
                     foreach (var link in data.@event.links)
                     {
@@ -64,6 +67,13 @@ namespace cc_slack_api.Controllers
                                 string projectKey = match.Groups[1].Value;
                                 string repositorySlug = match.Groups[2].Value;
                                 string pullRequestId = match.Groups[3].Value;
+
+                                var bitbucketClient = new HttpClient();
+                                string bitbucketUsername = ConfigurationManager.AppSettings["bitbucket_username"];
+                                string bitbucketPassword = ConfigurationManager.AppSettings["bitbucket_password"];
+                                byte[] authenticationBytes = Encoding.UTF8.GetBytes($"{bitbucketUsername}:{bitbucketPassword}");
+                                string authenticationString = Convert.ToBase64String(authenticationBytes);
+                                bitbucketClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authenticationString);
 
                                 HttpResponseMessage responseMessage = await bitbucketClient.GetAsync($@"https://codebase-aws.clearcompany.com/rest/api/1.0/projects/{projectKey}/repos/{repositorySlug}/pull-requests/{pullRequestId}");
                                 dynamic response = await responseMessage.Content.ReadAsAsync<dynamic>();
@@ -105,12 +115,13 @@ namespace cc_slack_api.Controllers
 
                     var postData = new
                                    {
-                                       token = data.@event.token,
+                                       token = (string)data.@event.token,
                                        channel = eventChannel,
-                                       ts = data.@event.message_ts,
+                                       ts = (int)data.@event.message_ts,
                                        unfurls = HttpUtility.UrlEncode(JsonConvert.SerializeObject(unfurls))
                                    };
 
+                    var slackClient = new HttpClient();
                     HttpResponseMessage postResponse = await slackClient.PostAsJsonAsync(@"https://slack.com/api/chat.unfurl", postData);
                 }
             }
