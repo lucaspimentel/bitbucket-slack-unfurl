@@ -14,7 +14,17 @@ namespace cc_slack_api.Controllers
         [Route("slack/event")]
         public async Task<IHttpActionResult> UrlVerification(dynamic data)
         {
-            if ((string) data.token == ConfigurationManager.AppSettings["slack_token"])
+            if (data == null)
+            {
+                return BadRequest("No data");
+            }
+
+            if (data.token == null)
+            {
+                return BadRequest("No token");
+            }
+
+            if ((string) data.token != ConfigurationManager.AppSettings["slack_token"])
             {
                 return Unauthorized();
             }
@@ -39,7 +49,8 @@ namespace cc_slack_api.Controllers
                 if (eventType == "link_shared")
                 {
                     var unfurls = new Dictionary<string, object>();
-                    var client = new HttpClient();
+                    var bitbucketClient = new HttpClient();
+                    var slackClient = new HttpClient();
 
                     foreach (var link in data.@event.links)
                     {
@@ -54,20 +65,23 @@ namespace cc_slack_api.Controllers
                                 string repositorySlug = match.Groups[2].Value;
                                 string pullRequestId = match.Groups[3].Value;
 
-                                HttpResponseMessage responseMessage = await client.GetAsync($@"https://codebase-aws.clearcompany.com/rest/api/1.0/projects/{projectKey}/repos/{repositorySlug}/pull-requests/{pullRequestId}");
+                                HttpResponseMessage responseMessage = await bitbucketClient.GetAsync($@"https://codebase-aws.clearcompany.com/rest/api/1.0/projects/{projectKey}/repos/{repositorySlug}/pull-requests/{pullRequestId}");
                                 dynamic response = await responseMessage.Content.ReadAsAsync<dynamic>();
+
+                                string plaintTextDescription = $"Description\n{response.description}\nFrom {response.fromRef.id} to {response.toRef.id}.";
+                                string formattedDescription = $"*Description*\n{response.description}\n`From {response.fromRef.id}` to `{response.toRef.id}`.";
 
                                 var attachment = new
                                                  {
-                                                     fallback = "Required plain-text summary of the attachment.",
+                                                     fallback = plaintTextDescription,
                                                      color = "#36a64f",
-                                                     pretext = "Optional text that appears above the attachment block",
+                                                     //pretext = "Optional text that appears above the attachment block",
                                                      author_name = response.author.user.displayName,
                                                      author_link = $"https://codebase-aws.clearcompany.com/users/{response.author.user.slug}",
                                                      //author_icon = "",
                                                      title = response.title,
                                                      title_link = response.links.self[0].href,
-                                                     text = response.description + "\n" + response.fromRef.id + " -> " + response.toRef.id,
+                                                     text = formattedDescription,
                                                      fields = new[]
                                                               {
                                                                   new
@@ -97,7 +111,7 @@ namespace cc_slack_api.Controllers
                                        unfurls = HttpUtility.UrlEncode(JsonConvert.SerializeObject(unfurls))
                                    };
 
-                    HttpResponseMessage postResponse = await client.PostAsJsonAsync(@"https://slack.com/api/chat.unfurl", postData);
+                    HttpResponseMessage postResponse = await slackClient.PostAsJsonAsync(@"https://slack.com/api/chat.unfurl", postData);
                 }
             }
 
