@@ -107,7 +107,7 @@ namespace cc_slack_api.Controllers
                                                      //thumb_url = "http=//example.com/path/to/thumb.png",
                                                      footer = "Bitbucket Server",
                                                      //footer_icon = "https=//platform.slack-edge.com/img/default_application_icon.png",
-                                                     ts = 123456789
+                                                     //ts = 123456789
                                                  };
 
                                 unfurls.Add(linkUrl, new[] {attachment});
@@ -119,12 +119,14 @@ namespace cc_slack_api.Controllers
                                    {
                                        token = (string) data.@event.token,
                                        channel = eventChannel,
-                                       ts = (int) data.@event.message_ts,
+                                       ts = (string) data.@event.message_ts,
                                        unfurls = HttpUtility.UrlEncode(JsonConvert.SerializeObject(unfurls))
                                    };
 
                     var slackClient = new HttpClient();
                     HttpResponseMessage postResponse = await slackClient.PostAsJsonAsync(@"https://slack.com/api/chat.unfurl", postData);
+
+                    return Ok();
                 }
             }
 
