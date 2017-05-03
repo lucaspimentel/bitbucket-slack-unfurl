@@ -32,10 +32,15 @@ namespace cc_slack_api.Controllers
                 return Unauthorized();
             }
 
-            string challenge = data.challenge;
-
-            if (data.type == "url_verification" && !string.IsNullOrWhiteSpace(challenge))
+            if (data.type == "url_verification")
             {
+                string challenge = data.challenge;
+
+                if (string.IsNullOrWhiteSpace(challenge))
+                {
+                    return BadRequest("No challenge");
+                }
+
                 return Ok(challenge);
             }
 
@@ -68,18 +73,15 @@ namespace cc_slack_api.Controllers
                                 string repositorySlug = match.Groups[2].Value;
                                 string pullRequestId = match.Groups[3].Value;
 
-                                var bitbucketClient = new HttpClient();
                                 string bitbucketUsername = ConfigurationManager.AppSettings["bitbucket_username"];
                                 string bitbucketPassword = ConfigurationManager.AppSettings["bitbucket_password"];
-                                byte[] authenticationBytes = Encoding.UTF8.GetBytes($"{bitbucketUsername}:{bitbucketPassword}");
-                                string authenticationString = Convert.ToBase64String(authenticationBytes);
-                                bitbucketClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authenticationString);
-
-                                HttpResponseMessage responseMessage = await bitbucketClient.GetAsync($@"https://codebase-aws.clearcompany.com/rest/api/1.0/projects/{projectKey}/repos/{repositorySlug}/pull-requests/{pullRequestId}");
+                                HttpResponseMessage responseMessage = await GetBitbucketPullRequest(bitbucketUsername, bitbucketPassword, projectKey, repositorySlug, pullRequestId);
                                 dynamic response = await responseMessage.Content.ReadAsAsync<dynamic>();
 
-                                string plaintTextDescription = $"Description\n{response.description}\nFrom {response.fromRef.id} to {response.toRef.id}.";
-                                string formattedDescription = $"*Description*\n{response.description}\n`From {response.fromRef.id}` to `{response.toRef.id}`.";
+                                string sourceBranch = ((string) response.fromRef.id).Replace("refs/head/", "");
+                                string destinationBranch = ((string) response.toRef.id).Replace("refs/head/", "");
+                                string plaintTextDescription = $"Description\n{response.description}\nFrom {sourceBranch} to {destinationBranch}.";
+                                string formattedDescription = $"*Description*\n{response.description}\n`From {sourceBranch}` to `{destinationBranch}`.";
 
                                 var attachment = new
                                                  {
@@ -115,9 +117,9 @@ namespace cc_slack_api.Controllers
 
                     var postData = new
                                    {
-                                       token = (string)data.@event.token,
+                                       token = (string) data.@event.token,
                                        channel = eventChannel,
-                                       ts = (int)data.@event.message_ts,
+                                       ts = (int) data.@event.message_ts,
                                        unfurls = HttpUtility.UrlEncode(JsonConvert.SerializeObject(unfurls))
                                    };
 
@@ -127,6 +129,19 @@ namespace cc_slack_api.Controllers
             }
 
             return BadRequest();
+        }
+
+        private static async Task<HttpResponseMessage> GetBitbucketPullRequest(string bitbucketUsername, string bitbucketPassword, string projectKey, string repositorySlug, string pullRequestId)
+        {
+            byte[] authenticationBytes = Encoding.UTF8.GetBytes($"{bitbucketUsername}:{bitbucketPassword}");
+            string authenticationString = Convert.ToBase64String(authenticationBytes);
+
+            var bitbucketClient = new HttpClient();
+            bitbucketClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authenticationString);
+
+            HttpResponseMessage responseMessage = await bitbucketClient.GetAsync($@"https://codebase-aws.clearcompany.com/rest/api/1.0/projects/{projectKey}/repos/{repositorySlug}/pull-requests/{pullRequestId}");
+            responseMessage.EnsureSuccessStatusCode();
+            return responseMessage;
         }
     }
 }
