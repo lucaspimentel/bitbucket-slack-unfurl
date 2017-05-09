@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
-using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web.Http;
@@ -204,8 +203,8 @@ namespace cc_slack_api.Controllers
             var attachment = new
                              {
                                  //fallback = "test fallback text",
-                                 color = "#36a64f",
-                                 pretext = $"From `{sourceBranch}` to `{destinationBranch}",
+                                 //color = "#36a64f",
+                                 pretext = $"From `{sourceBranch}` to `{destinationBranch}`",
                                  author_name = (string) pullRequestDetails.author.user.displayName,
                                  author_link = $"https://codebase-aws.clearcompany.com/users/{pullRequestDetails.author.user.slug}",
                                  //author_icon = "",
