@@ -202,12 +202,12 @@ namespace cc_slack_api.Controllers
 
             var attachment = new
                              {
-                                 //fallback = "test fallback text",
+                                 fallback = $@"Pull Request: from ""{sourceBranch}"" to ""{destinationBranch}""",
                                  //color = "#36a64f",
-                                 pretext = $"From `{sourceBranch}` to `{destinationBranch}`",
+                                 pretext = $"Pull Request: from `{sourceBranch}` to `{destinationBranch}`",
                                  author_name = (string) pullRequestDetails.author.user.displayName,
                                  author_link = $"https://codebase-aws.clearcompany.com/users/{pullRequestDetails.author.user.slug}",
-                                 //author_icon = "",
+                                 author_icon = BitbucketServerClient.GetGravatarImageUrl((string)pullRequestDetails.author.user.emailAddress),
                                  title = (string) pullRequestDetails.title,
                                  title_link = (string) pullRequestDetails.links.self[0].href,
                                  text = description,
@@ -223,7 +223,7 @@ namespace cc_slack_api.Controllers
                                  //image_url = "http=//my-website.com/path/to/image.jpg",
                                  //thumb_url = "http=//example.com/path/to/thumb.png",
                                  footer = "Bitbucket Server",
-                                 //footer_icon = "https=//platform.slack-edge.com/img/default_application_icon.png",
+                                 footer_icon = "http://cc-slack-api.azurewebsites.net/content/images/bitbucket_16x16.png",
                                  //ts = 123456789,
                                  mrkdwn_in = new[] {"text", "pretext"}
                              };

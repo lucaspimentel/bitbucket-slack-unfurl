@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Web;
 
-namespace cc_slack_api.Controllers
+namespace cc_slack_api
 {
     public class SlackClient
     {
