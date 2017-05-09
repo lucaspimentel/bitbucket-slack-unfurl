@@ -125,92 +125,99 @@ namespace cc_slack_api.Controllers
 
             if (eventType == "link_shared")
             {
-                if ((string) data.team_id != ConfigurationManager.AppSettings["slack_team_id"])
-                {
-                    return;
-                }
+                await HandleLinkSharedEvent(data);
+            }
 
-                if ((string) data.api_app_id != ConfigurationManager.AppSettings["slack_app_id"])
-                {
-                    return;
-                }
+            // TODO: handle other event types
+        }
 
-                var unfurls = new Dictionary<string, object>();
+        private static async Task HandleLinkSharedEvent(dynamic data)
+        {
+            if ((string) data.team_id != ConfigurationManager.AppSettings["slack_team_id"])
+            {
+                return;
+            }
 
-                foreach (var link in data.@event.links)
+            if ((string) data.api_app_id != ConfigurationManager.AppSettings["slack_app_id"])
+            {
+                return;
+            }
+
+            var unfurls = new Dictionary<string, object>();
+
+            foreach (var link in data.@event.links)
+            {
+                if ((string) link.domain == "codebase-aws.clearcompany.com")
                 {
-                    if (link.domain == "codebase-aws.clearcompany.com")
+                    string linkUrl = (string) link.url;
+                    object attachment = await GetBitbucketPullRequestAttachment(linkUrl);
+
+                    if (attachment != null)
                     {
-                        string linkUrl = (string) link.url;
-                        object attachment = await GetBitbucketPullRequestAttachment(linkUrl);
-
-                        if (attachment != null)
-                        {
-                            unfurls.Add(linkUrl, attachment);
-                        }
+                        unfurls.Add(linkUrl, attachment);
                     }
                 }
+            }
 
-                if (unfurls.Count > 0)
-                {
-                    var postData = new Dictionary<string, string>
-                                   {
-                                       {"token", ConfigurationManager.AppSettings["slack_oauth_token"]},
-                                       {"channel", (string) data.@event.channel},
-                                       {"ts", (string) data.@event.message_ts},
-                                       {"unfurls", JsonConvert.SerializeObject(unfurls)}
-                                   };
+            if (unfurls.Count > 0)
+            {
+                var postData = new Dictionary<string, string>
+                               {
+                                   {"token", ConfigurationManager.AppSettings["slack_oauth_token"]},
+                                   {"channel", (string) data.@event.channel},
+                                   {"ts", (string) data.@event.message_ts},
+                                   {"unfurls", JsonConvert.SerializeObject(unfurls)}
+                               };
 
-                    var slackClient = new SlackClient();
-                    await slackClient.PostToSlack("chat.unfurl", postData);
-                }
+                var slackClient = new SlackClient();
+                await slackClient.PostToSlack("chat.unfurl", postData);
             }
         }
 
         public static async Task<object> GetBitbucketPullRequestAttachment(string linkUrl)
         {
             Match match = Regex.Match(linkUrl, @"https://codebase-aws\.clearcompany\.com/projects/(\w+)/repos/(\w+)/pull-requests/(\d+).*");
-            object attachment = null;
 
-            if (match.Success)
+            if (!match.Success)
             {
-                string projectKey = match.Groups[1].Value;
-                string repositorySlug = match.Groups[2].Value;
-                string pullRequestId = match.Groups[3].Value;
+                return null;
+            }
 
-                string bitbucketUsername = ConfigurationManager.AppSettings["bitbucket_username"];
-                string bitbucketPassword = ConfigurationManager.AppSettings["bitbucket_password"];
-                HttpResponseMessage responseMessage = await BitbucketServerClient.GetPullRequest(bitbucketUsername, bitbucketPassword, projectKey, repositorySlug, pullRequestId);
-                dynamic response = await responseMessage.Content.ReadAsAsync<dynamic>();
+            string projectKey = match.Groups[1].Value;
+            string repositorySlug = match.Groups[2].Value;
+            string pullRequestId = match.Groups[3].Value;
+            string bitbucketUsername = ConfigurationManager.AppSettings["bitbucket_username"];
+            string bitbucketPassword = ConfigurationManager.AppSettings["bitbucket_password"];
 
-                string sourceBranch = ((string)response.fromRef.id).Replace("refs/heads/", "");
-                string destinationBranch = ((string)response.toRef.id).Replace("refs/heads/", "");
+            dynamic pullRequestDetails = await BitbucketServerClient.GetPullRequestDetails(bitbucketUsername, bitbucketPassword, projectKey, repositorySlug, pullRequestId);
 
-                string originalDescription = response.description;
-                string[] descriptionLines = originalDescription.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
+            string sourceBranch = ((string) pullRequestDetails.fromRef.id).Replace("refs/heads/", "");
+            string destinationBranch = ((string) pullRequestDetails.toRef.id).Replace("refs/heads/", "");
+            string originalDescription = pullRequestDetails.description;
+            string[] descriptionLines = originalDescription.Split(new[] {"\r\n", "\n", "\r"}, StringSplitOptions.None);
 
-                string description = string.Join("\n", descriptionLines.Take(3))
-                                           .Replace("&", "&amp;")
-                                           .Replace("<", "&lt;")
-                                           .Replace(">", "&gt;");
+            string description = string.Join("\n", descriptionLines.Take(3))
+                                       .Replace("&", "&amp;")
+                                       .Replace("<", "&lt;")
+                                       .Replace(">", "&gt;");
 
-                attachment = new
+            var attachment = new
                              {
                                  //fallback = "test fallback text",
                                  color = "#36a64f",
                                  pretext = $"From `{sourceBranch}` to `{destinationBranch}",
-                                 author_name = (string)response.author.user.displayName,
-                                 author_link = $"https://codebase-aws.clearcompany.com/users/{response.author.user.slug}",
+                                 author_name = (string) pullRequestDetails.author.user.displayName,
+                                 author_link = $"https://codebase-aws.clearcompany.com/users/{pullRequestDetails.author.user.slug}",
                                  //author_icon = "",
-                                 title = (string)response.title,
-                                 title_link = (string)response.links.self[0].href,
+                                 title = (string) pullRequestDetails.title,
+                                 title_link = (string) pullRequestDetails.links.self[0].href,
                                  text = description,
                                  fields = new[]
                                           {
                                               new
                                               {
                                                   title = "State",
-                                                  value = $"{response.state}",
+                                                  value = $"{pullRequestDetails.state}",
                                                   @short = true
                                               }
                                           },
@@ -219,11 +226,10 @@ namespace cc_slack_api.Controllers
                                  footer = "Bitbucket Server",
                                  //footer_icon = "https=//platform.slack-edge.com/img/default_application_icon.png",
                                  //ts = 123456789,
-                                 mrkdwn_in = new[] { "text", "pretext" }
+                                 mrkdwn_in = new[] {"text", "pretext"}
                              };
-            }
+
             return attachment;
         }
-
     }
 }

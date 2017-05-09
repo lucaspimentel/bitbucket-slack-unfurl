@@ -8,7 +8,7 @@ namespace cc_slack_api.Controllers
 {
     public class BitbucketServerClient
     {
-        public static async Task<HttpResponseMessage> GetPullRequest(string bitbucketUsername, string bitbucketPassword, string projectKey, string repositorySlug, string pullRequestId)
+        public static async Task<dynamic> GetPullRequestDetails(string bitbucketUsername, string bitbucketPassword, string projectKey, string repositorySlug, string pullRequestId)
         {
             byte[] authenticationBytes = Encoding.UTF8.GetBytes($"{bitbucketUsername}:{bitbucketPassword}");
             string authenticationString = Convert.ToBase64String(authenticationBytes);
@@ -19,7 +19,7 @@ namespace cc_slack_api.Controllers
 
                 HttpResponseMessage responseMessage = await bitbucketClient.GetAsync($@"https://codebase-aws.clearcompany.com/rest/api/1.0/projects/{projectKey}/repos/{repositorySlug}/pull-requests/{pullRequestId}");
                 responseMessage.EnsureSuccessStatusCode();
-                return responseMessage;
+                return await responseMessage.Content.ReadAsAsync<dynamic>();
             }
         }
     }
