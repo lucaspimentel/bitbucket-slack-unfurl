@@ -3,11 +3,8 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Web;
 using System.Web.Http;
 using Newtonsoft.Json;
 
@@ -15,18 +12,82 @@ namespace cc_slack_api.Controllers
 {
     public class SlackController : ApiController
     {
-        [Route("slack/event")]
-        [HttpPost]
-        public IHttpActionResult PostEvent(dynamic data)
+        /*
+        [Route("slack/authorize/start")]
+        public IHttpActionResult Authorize()
         {
-            if (data == null)
+            var data = new
+                       {
+                           client_id = "",
+                           scope = "",
+                           // redirect_uri = "",
+                           // state = "",
+                           // team = ""
+                       };
+            // https://slack.com/oauth/authorize
+            //SlackClient.UrlEncode()
+        }
+
+        [Route("slack/authorize/complete")]
+        public IHttpActionResult Authorize()
+        {
+
+        }
+        */
+
+        /*
+        public class SlashCommandArguments
+        {
+            public string token { get; set; }
+            public string team_id { get; set; }
+            public string team_domain { get; set; }
+            public string channel_id { get; set; }
+            public string channel_name { get; set; }
+            public string user_id { get; set; }
+            public string user_name { get; set; }
+            public string command { get; set; }
+            public string text { get; set; }
+            public string response_url { get; set; }
+        }
+
+        [Route("slack/slash-command")]
+        [HttpPost]
+        public IHttpActionResult PostSlashCommand(SlashCommandArguments args)
+        {
+            if (args == null)
             {
                 return BadRequest("No data");
             }
 
-            string token = data.token;
-            string type = data.type;
-            string challenge = data.challenge;
+            if (args.token == null)
+            {
+                return BadRequest("No token");
+            }
+
+            if (args.token != ConfigurationManager.AppSettings["slack_verification_token"])
+            {
+                return BadRequest("Wrong token");
+            }
+
+            if (args.command == "/pull-request")
+            {
+            }
+
+            return Ok();
+        }
+        */
+
+        [Route("slack/event")]
+        [HttpPost]
+        public IHttpActionResult PostEvent(dynamic args)
+        {
+            if (args == null)
+            {
+                return BadRequest("No data");
+            }
+
+            string token = args.token;
+            string type = args.type;
 
             if (token == null)
             {
@@ -40,6 +101,8 @@ namespace cc_slack_api.Controllers
 
             if (type == "url_verification")
             {
+                string challenge = args.challenge;
+
                 if (string.IsNullOrWhiteSpace(challenge))
                 {
                     return BadRequest("No challenge");
@@ -50,7 +113,7 @@ namespace cc_slack_api.Controllers
 
             if (type == "event_callback")
             {
-                Task.Run(() => HandleEvent((object)data));
+                Task.Run(() => HandleEvent((object)args));
             }
 
             return Ok();
@@ -79,58 +142,10 @@ namespace cc_slack_api.Controllers
                     if (link.domain == "codebase-aws.clearcompany.com")
                     {
                         string linkUrl = (string) link.url;
-                        Match match = Regex.Match(linkUrl, @"https://codebase-aws\.clearcompany\.com/projects/(\w+)/repos/(\w+)/pull-requests/(\d+).*");
+                        object attachment = await GetBitbucketPullRequestAttachment(linkUrl);
 
-                        if (match.Success)
+                        if (attachment != null)
                         {
-                            string projectKey = match.Groups[1].Value;
-                            string repositorySlug = match.Groups[2].Value;
-                            string pullRequestId = match.Groups[3].Value;
-
-                            string bitbucketUsername = ConfigurationManager.AppSettings["bitbucket_username"];
-                            string bitbucketPassword = ConfigurationManager.AppSettings["bitbucket_password"];
-                            HttpResponseMessage responseMessage = await GetBitbucketPullRequest(bitbucketUsername, bitbucketPassword, projectKey, repositorySlug, pullRequestId);
-                            dynamic response = await responseMessage.Content.ReadAsAsync<dynamic>();
-
-                            string sourceBranch = ((string) response.fromRef.id).Replace("refs/heads/", "");
-                            string destinationBranch = ((string) response.toRef.id).Replace("refs/heads/", "");
-
-                            string originalDescription = response.description;
-                            string[] descriptionLines = originalDescription.Split(new[] {"\r\n", "\n", "\r"}, StringSplitOptions.None);
-
-                            string description = string.Join("\n", descriptionLines.Take(3))
-                                                       .Replace("&", "&amp;")
-                                                       .Replace("<", "&lt;")
-                                                       .Replace(">", "&gt;");
-
-                            var attachment = new
-                                             {
-                                                 //fallback = "test fallback text",
-                                                 color = "#36a64f",
-                                                 pretext = $"From `{sourceBranch}` to `{destinationBranch}",
-                                                 author_name = (string) response.author.user.displayName,
-                                                 author_link = $"https://codebase-aws.clearcompany.com/users/{response.author.user.slug}",
-                                                 //author_icon = "",
-                                                 title = (string) response.title,
-                                                 title_link = (string) response.links.self[0].href,
-                                                 text = description,
-                                                 fields = new[]
-                                                          {
-                                                              new
-                                                              {
-                                                                  title = "State",
-                                                                  value = $"{response.state}",
-                                                                  @short = true
-                                                              }
-                                                          },
-                                                 //image_url = "http=//my-website.com/path/to/image.jpg",
-                                                 //thumb_url = "http=//example.com/path/to/thumb.png",
-                                                 footer = "Bitbucket Server",
-                                                 //footer_icon = "https=//platform.slack-edge.com/img/default_application_icon.png",
-                                                 //ts = 123456789,
-                                                 mrkdwn_in = new[] {"text", "pretext"}
-                                             };
-
                             unfurls.Add(linkUrl, attachment);
                         }
                     }
@@ -146,42 +161,69 @@ namespace cc_slack_api.Controllers
                                        {"unfurls", JsonConvert.SerializeObject(unfurls)}
                                    };
 
-                    await PostToSlack("chat.unfurl", postData);
+                    var slackClient = new SlackClient();
+                    await slackClient.PostToSlack("chat.unfurl", postData);
                 }
             }
         }
 
-        private static async Task<HttpResponseMessage> GetBitbucketPullRequest(string bitbucketUsername, string bitbucketPassword, string projectKey, string repositorySlug, string pullRequestId)
+        public static async Task<object> GetBitbucketPullRequestAttachment(string linkUrl)
         {
-            byte[] authenticationBytes = Encoding.UTF8.GetBytes($"{bitbucketUsername}:{bitbucketPassword}");
-            string authenticationString = Convert.ToBase64String(authenticationBytes);
+            Match match = Regex.Match(linkUrl, @"https://codebase-aws\.clearcompany\.com/projects/(\w+)/repos/(\w+)/pull-requests/(\d+).*");
+            object attachment = null;
 
-            using (var bitbucketClient = new HttpClient())
+            if (match.Success)
             {
-                bitbucketClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", authenticationString);
+                string projectKey = match.Groups[1].Value;
+                string repositorySlug = match.Groups[2].Value;
+                string pullRequestId = match.Groups[3].Value;
 
-                HttpResponseMessage responseMessage = await bitbucketClient.GetAsync($@"https://codebase-aws.clearcompany.com/rest/api/1.0/projects/{projectKey}/repos/{repositorySlug}/pull-requests/{pullRequestId}");
-                responseMessage.EnsureSuccessStatusCode();
-                return responseMessage;
+                string bitbucketUsername = ConfigurationManager.AppSettings["bitbucket_username"];
+                string bitbucketPassword = ConfigurationManager.AppSettings["bitbucket_password"];
+                HttpResponseMessage responseMessage = await BitbucketServerClient.GetPullRequest(bitbucketUsername, bitbucketPassword, projectKey, repositorySlug, pullRequestId);
+                dynamic response = await responseMessage.Content.ReadAsAsync<dynamic>();
+
+                string sourceBranch = ((string)response.fromRef.id).Replace("refs/heads/", "");
+                string destinationBranch = ((string)response.toRef.id).Replace("refs/heads/", "");
+
+                string originalDescription = response.description;
+                string[] descriptionLines = originalDescription.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
+
+                string description = string.Join("\n", descriptionLines.Take(3))
+                                           .Replace("&", "&amp;")
+                                           .Replace("<", "&lt;")
+                                           .Replace(">", "&gt;");
+
+                attachment = new
+                             {
+                                 //fallback = "test fallback text",
+                                 color = "#36a64f",
+                                 pretext = $"From `{sourceBranch}` to `{destinationBranch}",
+                                 author_name = (string)response.author.user.displayName,
+                                 author_link = $"https://codebase-aws.clearcompany.com/users/{response.author.user.slug}",
+                                 //author_icon = "",
+                                 title = (string)response.title,
+                                 title_link = (string)response.links.self[0].href,
+                                 text = description,
+                                 fields = new[]
+                                          {
+                                              new
+                                              {
+                                                  title = "State",
+                                                  value = $"{response.state}",
+                                                  @short = true
+                                              }
+                                          },
+                                 //image_url = "http=//my-website.com/path/to/image.jpg",
+                                 //thumb_url = "http=//example.com/path/to/thumb.png",
+                                 footer = "Bitbucket Server",
+                                 //footer_icon = "https=//platform.slack-edge.com/img/default_application_icon.png",
+                                 //ts = 123456789,
+                                 mrkdwn_in = new[] { "text", "pretext" }
+                             };
             }
+            return attachment;
         }
 
-        private static async Task PostToSlack(string endpoint, IDictionary<string, string> data)
-        {
-            string urlEncodedData = UrlEncode(data);
-
-            using (var slackClient = new HttpClient())
-            {
-                var stringContent = new StringContent(urlEncodedData, Encoding.UTF8, "application/x-www-form-urlencoded");
-                HttpResponseMessage postResponse = await slackClient.PostAsync($"https://slack.com/api/{endpoint}", stringContent);
-                postResponse.EnsureSuccessStatusCode();
-                dynamic result = await postResponse.Content.ReadAsAsync<dynamic>();
-            }
-        }
-
-        private static string UrlEncode(IEnumerable<KeyValuePair<string, string>> data)
-        {
-            return string.Join("&", data.Select(kv => $"{kv.Key}={HttpUtility.UrlEncode(kv.Value)}"));
-        }
     }
 }
