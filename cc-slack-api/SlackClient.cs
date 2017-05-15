@@ -26,7 +26,8 @@ namespace cc_slack_api
                 HttpResponseMessage postResponse = await httpClient.PostAsync($"{BaseUrl}/{endpoint}", urlEncodedData);
                 postResponse.EnsureSuccessStatusCode();
 
-                return await postResponse.Content.ReadAsAsync<dynamic>();
+                dynamic result = await postResponse.Content.ReadAsAsync<dynamic>();
+                return result;
             }
         }
 
