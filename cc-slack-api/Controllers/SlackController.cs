@@ -193,7 +193,9 @@ namespace cc_slack_api.Controllers
             string sourceBranch = ((string) pullRequestDetails.fromRef.id).Replace("refs/heads/", "");
             string destinationBranch = ((string) pullRequestDetails.toRef.id).Replace("refs/heads/", "");
             string originalDescription = pullRequestDetails.description;
-            string[] descriptionLines = originalDescription.Split(new[] {"\r\n", "\n", "\r"}, StringSplitOptions.None);
+            string[] descriptionLines = string.IsNullOrEmpty(originalDescription) ?
+                new[] {"(no description)"} :
+                originalDescription.Split(new[] {"\r\n", "\n", "\r"}, StringSplitOptions.None);
 
             string description = string.Join("\n", descriptionLines.Take(3))
                                        .Replace("&", "&amp;")
