@@ -5,9 +5,11 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web.Http;
+using CcSlack.Shared.Bitbucket;
+using CcSlack.Shared.Slack;
 using Newtonsoft.Json;
 
-namespace cc_slack_api.Controllers
+namespace CcSlack.WebApi.Controllers
 {
     public class SlackController : ApiController
     {

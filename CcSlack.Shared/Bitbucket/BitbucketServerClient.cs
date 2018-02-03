@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace cc_slack_api
+namespace CcSlack.Shared.Bitbucket
 {
     public class BitbucketServerClient
     {

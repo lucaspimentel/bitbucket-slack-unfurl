@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Web;
 
-namespace cc_slack_api
+namespace CcSlack.Shared.Slack
 {
     public class SlackClient
     {
@@ -39,7 +39,7 @@ namespace cc_slack_api
 
         public static string UrlEncode(IEnumerable<KeyValuePair<string, string>> data)
         {
-            return string.Join("&", data.Select(kv => $"{kv.Key}={HttpUtility.UrlEncode((string) kv.Value)}"));
+            return string.Join("&", data.Select(kv => $"{kv.Key}={HttpUtility.UrlEncode(kv.Value)}"));
         }
     }
 }

@@ -12,8 +12,8 @@
     <ProjectTypeGuids>{349c5851-65df-11da-9384-00065b846f21};{fae04ec0-301f-11d3-bf4b-00c04f79efbc}</ProjectTypeGuids>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>cc_slack_api</RootNamespace>
-    <AssemblyName>cc-slack-api</AssemblyName>
+    <RootNamespace>CcSlack.WebApi</RootNamespace>
+    <AssemblyName>CcSlack.WebApi</AssemblyName>
     <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <UseIISExpress>true</UseIISExpress>
     <IISExpressSSLPort />
@@ -25,6 +25,7 @@
     </NuGetPackageImportStamp>
     <ApplicationInsightsResourceId>/subscriptions/c885780c-4e0c-4952-86d8-49534b99932e/resourcegroups/Default-ApplicationInsights-EastUS/providers/microsoft.insights/components/cc-slack-api</ApplicationInsightsResourceId>
     <ApplicationInsightsAnnotationResourceId>/subscriptions/c885780c-4e0c-4952-86d8-49534b99932e/resourcegroups/Default-ApplicationInsights-EastUS/providers/microsoft.insights/components/cc-slack-api</ApplicationInsightsAnnotationResourceId>
+    <Use64BitIISExpress />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -132,8 +133,6 @@
   <ItemGroup>
     <Compile Include="App_Start\SwaggerConfig.cs" />
     <Compile Include="App_Start\WebApiConfig.cs" />
-    <Compile Include="BitbucketServerClient.cs" />
-    <Compile Include="SlackClient.cs" />
     <Compile Include="Controllers\SlackController.cs" />
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
@@ -155,8 +154,10 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="App_Data\" />
-    <Folder Include="Models\" />
+    <ProjectReference Include="..\CcSlack.Shared\CcSlack.Shared.csproj">
+      <Project>{aa018915-3977-4db0-a7dd-a4450311b1bd}</Project>
+      <Name>CcSlack.Shared</Name>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <WCFMetadata Include="Connected Services\" />
